@@ -118,5 +118,5 @@ sys_sigreturn(void){
   struct proc *p = myproc();
   *(p->trapframe) = *(p->trapframe_backup);
   p->handlering = 0;
-  return 0;
+  return p->trapframe->a0;
 }
