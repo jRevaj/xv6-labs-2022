@@ -16,11 +16,13 @@ main(int argc, char *argv[])
   pipe(p);
 
   if (fork() == 0) {
+    //child
     read(p[0], buf, 4);
     fprintf(1, "%d: received %s\n", getpid(), buf);
     write(p[1], "pong", 4);
     exit(0);
   } else {
+    //parent
     write(p[1], "ping", 4);
     wait(0);
     read(p[0], buf, 4);
