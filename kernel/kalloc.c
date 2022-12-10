@@ -81,36 +81,36 @@ kalloc(void)
   int cid = cpuid(); // get current cpuid
   pop_off(); // enable interrupts
 
-  // allocate pages from current cpu freelist
+  // allocate pages from current cpu freelist and cpus with id > current cpuid
   for (int i = cid; i < NCPU; i++)
   {
-    acquire(&kmem[i].lock); 
-    r = kmem[i].freelist;
+    acquire(&kmem[i].lock);
+    r = kmem[i].freelist; // get current kmem freelist
     if (r) {
-      kmem[i].freelist = r->next;
+      kmem[i].freelist = r->next; // record new start of freelist
     }
     release(&kmem[i].lock);
 
     if (r) {
-      memset((char*)r, 5, PGSIZE); // fill with junk
+      memset((char*)r, 5, PGSIZE); // fill page with junk
       return (void*)r;
     }
   }
 
-  // steal free pages from cpus that are not executing right now
+  // allocate pages from cpus with id < current cpuid
   for (int i = 0; i < cid; i++)
   {
     acquire(&kmem[i].lock);
-    r = kmem[i].freelist;
+    r = kmem[i].freelist; // get current kmem freelist
 
-    if (r) {
-      kmem[i].freelist = r->next;
+    if (r) {  // if freelist is not empty
+      kmem[i].freelist = r->next; // record new start of freelist
     }
     release(&kmem[i].lock);
 
     if (r)
     {
-      memset((char*)r, 5, PGSIZE);
+      memset((char*)r, 5, PGSIZE);  // fill page with junk
       return (void*)r;
     }
   }
