@@ -256,9 +256,9 @@ iget(uint dev, uint inum)
     if(ip->ref > 0 && ip->dev == dev && ip->inum == inum){
       ip->ref++;
       release(&itable.lock);
-      return ip;
+      return ip;  // return new ref to inode
     }
-    if(empty == 0 && ip->ref == 0)    // Remember empty slot.
+    if(empty == 0 && ip->ref == 0)    // Remember first empty slot.
       empty = ip;
   }
 
@@ -385,7 +385,7 @@ bmap(struct inode *ip, uint bn)
   uint addr, *a;
   struct buf *bp;
 
-  if(bn < NDIRECT){
+  if(bn < NDIRECT){ // first case: look directly in addrs[]
     if((addr = ip->addrs[bn]) == 0){
       addr = balloc(ip->dev);
       if(addr == 0)
@@ -397,7 +397,7 @@ bmap(struct inode *ip, uint bn)
   bn -= NDIRECT;
 
   if(bn < NINDIRECT){
-    // Load indirect block, allocating if necessary.
+    // singly-indirect block
     if((addr = ip->addrs[NDIRECT]) == 0){
       addr = balloc(ip->dev);
       if(addr == 0)
@@ -417,6 +417,34 @@ bmap(struct inode *ip, uint bn)
     return addr;
   }
 
+  bn -= NINDIRECT;
+
+  if (bn < NINDDIRECT)
+  {
+    // doubly-indirect block
+    if ((addr = ip->addrs[NDDIRECT]) == 0)
+    {
+      ip->addrs[NDDIRECT] = addr = balloc(ip->dev);
+    }
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if ((addr = a[bn / NINDIRECT]) == 0)
+    {
+      a[bn / NINDIRECT] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if ((addr = a[bn % NINDIRECT]) == 0)
+    {
+      a[bn % NINDIRECT] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    return addr;
+  }
+
   panic("bmap: out of range");
 }
 
@@ -426,12 +454,12 @@ void
 itrunc(struct inode *ip)
 {
   int i, j;
-  struct buf *bp;
-  uint *a;
+  struct buf *bp, *bp2;
+  uint *a, *a2;
 
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
-      bfree(ip->dev, ip->addrs[i]);
+      bfree(ip->dev, ip->addrs[i]); // free direct blocks
       ip->addrs[i] = 0;
     }
   }
@@ -441,11 +469,38 @@ itrunc(struct inode *ip)
     a = (uint*)bp->data;
     for(j = 0; j < NINDIRECT; j++){
       if(a[j])
-        bfree(ip->dev, a[j]);
+        bfree(ip->dev, a[j]); // free indirect blocks
     }
     brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT]);
+    bfree(ip->dev, ip->addrs[NDIRECT]); // free indirect block itself
     ip->addrs[NDIRECT] = 0;
+  }
+
+  if (ip->addrs[NDDIRECT])
+  {
+    bp = bread(ip->dev, ip->addrs[NDDIRECT]);
+    a = (uint*)bp->data;
+    for (int i = 0; i < NINDIRECT; i++)
+    {
+      // doubly-indirect block
+      if (a[i])
+      {
+        bp2 = bread(ip->dev, a[i]);
+        a2 = (uint*)bp->data;
+        for (int j = 0; j < NINDIRECT; j++)
+        {
+          if (a2[j])
+          {
+            bfree(ip->dev, a2[j]);
+          }
+        }
+        brelse(bp2);
+        bfree(ip->dev, a[i]);
+      }
+    }
+    brelse(bp);
+    bfree(ip->dev, ip->addrs[NDDIRECT]);
+    ip->addrs[NDDIRECT] = 0;
   }
 
   ip->size = 0;
@@ -474,12 +529,13 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   uint tot, m;
   struct buf *bp;
 
+  // check offset and count not beyond eof
   if(off > ip->size || off + n < off)
-    return 0;
+    return 0; // ret err
   if(off + n > ip->size)
-    n = ip->size - off;
+    n = ip->size - off; // ret fewer bytes than requested
 
-  for(tot=0; tot<n; tot+=m, off+=m, dst+=m){
+  for(tot=0; tot<n; tot+=m, off+=m, dst+=m){  // process each block of file
     uint addr = bmap(ip, off/BSIZE);
     if(addr == 0)
       break;
@@ -653,28 +709,28 @@ namex(char *path, int nameiparent, char *name)
 {
   struct inode *ip, *next;
 
-  if(*path == '/')
+  if(*path == '/')  // start at root 
     ip = iget(ROOTDEV, ROOTINO);
-  else
+  else  // otherwise current dir
     ip = idup(myproc()->cwd);
 
-  while((path = skipelem(path, name)) != 0){
+  while((path = skipelem(path, name)) != 0){ // consider each element of path in turn 
     ilock(ip);
-    if(ip->type != T_DIR){
+    if(ip->type != T_DIR){  // check if it's directory
       iunlockput(ip);
       return 0;
     }
-    if(nameiparent && *path == '\0'){
+    if(nameiparent && *path == '\0'){ // final path element already copied into name
       // Stop one level early.
       iunlock(ip);
       return ip;
     }
-    if((next = dirlookup(ip, name, 0)) == 0){
+    if((next = dirlookup(ip, name, 0)) == 0){ // look for path element
       iunlockput(ip);
       return 0;
     }
     iunlockput(ip);
-    ip = next;
+    ip = next;  // prepare for next iter
   }
   if(nameiparent){
     iput(ip);

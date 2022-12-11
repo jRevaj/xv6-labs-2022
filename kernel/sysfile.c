@@ -126,23 +126,23 @@ sys_link(void)
   char name[DIRSIZ], new[MAXPATH], old[MAXPATH];
   struct inode *dp, *ip;
 
-  if(argstr(0, old, MAXPATH) < 0 || argstr(1, new, MAXPATH) < 0)
+  if(argstr(0, old, MAXPATH) < 0 || argstr(1, new, MAXPATH) < 0) 
     return -1;
 
   begin_op();
-  if((ip = namei(old)) == 0){
+  if((ip = namei(old)) == 0){ // old exists
     end_op();
     return -1;
   }
 
   ilock(ip);
-  if(ip->type == T_DIR){
+  if(ip->type == T_DIR){  // is directiory
     iunlockput(ip);
     end_op();
     return -1;
   }
 
-  ip->nlink++;
+  ip->nlink++;  // increment reference
   iupdate(ip);
   iunlock(ip);
 
@@ -160,7 +160,7 @@ sys_link(void)
 
   return 0;
 
-bad:
+bad:  // if error occurs decrement reference
   ilock(ip);
   ip->nlink--;
   iupdate(ip);
@@ -248,12 +248,12 @@ create(char *path, short type, short major, short minor)
   struct inode *ip, *dp;
   char name[DIRSIZ];
 
-  if((dp = nameiparent(path, name)) == 0)
+  if((dp = nameiparent(path, name)) == 0) // get inode of parent dir
     return 0;
 
   ilock(dp);
 
-  if((ip = dirlookup(dp, name, 0)) != 0){
+  if((ip = dirlookup(dp, name, 0)) != 0){ // check whether the name already exists
     iunlockput(dp);
     ilock(ip);
     if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
@@ -262,7 +262,7 @@ create(char *path, short type, short major, short minor)
     return 0;
   }
 
-  if((ip = ialloc(dp->dev, type)) == 0){
+  if((ip = ialloc(dp->dev, type)) == 0){  // if name does not exist allocate new
     iunlockput(dp);
     return 0;
   }
@@ -316,7 +316,7 @@ sys_open(void)
 
   begin_op();
 
-  if(omode & O_CREATE){
+  if(omode & O_CREATE){ // if O_CREATE flag passed
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
       end_op();
@@ -341,7 +341,7 @@ sys_open(void)
     return -1;
   }
 
-  if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
+  if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){  // allocate file and filedescriptor
     if(f)
       fileclose(f);
     iunlockput(ip);
@@ -352,7 +352,7 @@ sys_open(void)
   if(ip->type == T_DEVICE){
     f->type = FD_DEVICE;
     f->major = ip->major;
-  } else {
+  } else {  // fill in file
     f->type = FD_INODE;
     f->off = 0;
   }
