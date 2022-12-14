@@ -17,8 +17,8 @@ struct barrier {
 static void
 barrier_init(void)
 {
-  assert(pthread_mutex_init(&bstate.barrier_mutex, NULL) == 0);
-  assert(pthread_cond_init(&bstate.barrier_cond, NULL) == 0);
+  assert(pthread_mutex_init(&bstate.barrier_mutex, NULL) == 0); // initialize barrier_mutex lock
+  assert(pthread_cond_init(&bstate.barrier_cond, NULL) == 0); // initialize condition
   bstate.nthread = 0;
 }
 
@@ -28,15 +28,15 @@ barrier()
   // Block until all threads have called barrier() and
   // then increment bstate.round.
   //
-  pthread_mutex_lock(&bstate.barrier_mutex);
+  pthread_mutex_lock(&bstate.barrier_mutex); // acquire barrier_mutex lock
   while (round != bstate.round)
   {
-    pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex);
+    pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex); // sleep on cond variable and release lock, lock again after wake
   }
   bstate.nthread++;
   while ((bstate.nthread < nthread) && (bstate.round == round))
   {
-    pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex);
+    pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex); // sleep on cond variable and release lock, lock again after wake
   }
   if (bstate.round == round) {
     bstate.round++;
@@ -46,8 +46,9 @@ barrier()
   {
     round = bstate.round;
   }
-  pthread_cond_signal(&bstate.barrier_cond);
-  pthread_mutex_unlock(&bstate.barrier_mutex);
+  // pthread_cond_broadcast(&bstate.barrier_cond);  // unlock all threads currently blocked on condition variable
+  pthread_cond_signal(&bstate.barrier_cond);  // unblock at least on of the threads that are blocked on condition variable
+  pthread_mutex_unlock(&bstate.barrier_mutex); // unlock barrier_mutex lock
 }
 
 static void *

@@ -33,7 +33,7 @@ struct context {
 struct thread {
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
-  struct context context;  
+  struct context context; // thread context
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
@@ -96,10 +96,9 @@ thread_create(void (*func)())
     if (t->state == FREE) break;
   }
   t->state = RUNNABLE;
-  // YOUR CODE HERE
-  memset(&t->context, 0, sizeof(struct context));
-  t->context.ra = (uint64)func;
-  t->context.sp = (uint64)t->stack + STACK_SIZE;
+  memset(&t->context, 0, sizeof(struct context)); // allocate memory for context
+  t->context.ra = (uint64)func; // set register ra to address from which thread_create was called
+  t->context.sp = (uint64)t->stack + STACK_SIZE;  // set register sp(stack pointer) to t->stack + STACK_SIZE
 }
 
 void 
