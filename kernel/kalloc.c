@@ -63,10 +63,10 @@ kfree(void *pa)
   push_off(); // disable interrupts
   int cid = cpuid();  // get current cpuid
   pop_off();  // enable interrupts
-  acquire(&kmem[cid].lock); // acquire current cpu kmem.lock
+  acquire(&kmem[cid].lock); // acquire current cpu kmem.lock, acquire disables interrupts
   r->next = kmem[cid].freelist; // record old start of the freelist in r->next
   kmem[cid].freelist = r; // set freelist equal to r
-  release(&kmem[cid].lock); // release current cpu kmem.lock
+  release(&kmem[cid].lock); // release current cpu kmem.lock, release enables interrupts
 }
 
 // Allocate one 4096-byte page of physical memory.
