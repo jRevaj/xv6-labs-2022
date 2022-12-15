@@ -134,7 +134,7 @@ sys_link(void)
     return -1;
   }
 
-  ilock(ip);
+  ilock(ip); // lock inode
   if(ip->type == T_DIR){
     iunlockput(ip);
     end_op();
@@ -142,8 +142,8 @@ sys_link(void)
   }
 
   ip->nlink++;
-  iupdate(ip);
-  iunlock(ip);
+  iupdate(ip); // copy modified in memory inode to disk
+  iunlock(ip);  // unlock inode
 
   if((dp = nameiparent(new, name)) == 0)
     goto bad;
