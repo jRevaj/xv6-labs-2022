@@ -385,7 +385,7 @@ bmap(struct inode *ip, uint bn)
   uint addr, *a;
   struct buf *bp;
 
-  if(bn < NDIRECT){ // first case: look directly in addrs[]
+  if(bn < NDIRECT){ // first case: if block number is in NDIRECT range -> look directly in addrs[]
     if((addr = ip->addrs[bn]) == 0){
       addr = balloc(ip->dev);
       if(addr == 0)
@@ -394,37 +394,37 @@ bmap(struct inode *ip, uint bn)
     }
     return addr;
   }
-  bn -= NDIRECT;
+  bn -= NDIRECT;  // bn = bn - NDIRECT -> remove NDIRECT blocks we have searched through in first case
 
-  if (bn < NINDIRECT) {
+  if (bn < NINDIRECT) { // second case: if block number is in NDIRECT range -> look in singly-indirect block 
     // singly-indirect block
     if((addr = ip->addrs[NDIRECT]) == 0){
-      addr = balloc(ip->dev);
-      if(addr == 0)
+      addr = balloc(ip->dev); // allocate zeroed disk block on device ip->dev
+      if(addr == 0) // if out of disk space
         return 0;
-      ip->addrs[NDIRECT] = addr;
+      ip->addrs[NDIRECT] = addr; // assign allocated block to it's place
     }
-    bp = bread(ip->dev, addr);
+    bp = bread(ip->dev, addr);  // assign locked buffer with contents of desired block
     a = (uint*)bp->data;
-    if((addr = a[bn]) == 0){
-      addr = balloc(ip->dev);
+    if((addr = a[bn]) == 0){ 
+      addr = balloc(ip->dev); // allocate zeroed disk block on device ip->dev
       if(addr){
         a[bn] = addr;
         log_write(bp);
       }
     }
-    brelse(bp);
+    brelse(bp); // release locked buffer and move to the head of MRU(Most Recently Used)
     return addr;
   }
-  bn -= NINDIRECT;
+  bn -= NINDIRECT; // remove NINDIRECT blocks we have searched through in second case
 
-  if (bn < NINDDIRECT) {
+  if (bn < NDINDIRECT) {  // third case: if block number is in NDINDIRECT range -> look in doubly-indirect 
     // doubly-indirect block
     if((addr = ip->addrs[NDDIRECT]) == 0)
       ip->addrs[NDDIRECT] = addr = balloc(ip->dev);
-    bp = bread(ip->dev, addr);
-    a = (uint*)bp->data;
-    if((addr = a[bn / NINDIRECT]) == 0){
+    bp = bread(ip->dev, addr);  // return locked buffer with contents of desired block
+    a = (uint*)bp->data;  // assign block data to a
+    if((addr = a[bn / NINDIRECT]) == 0){ // if a is 
       a[bn / NINDIRECT] = addr = balloc(ip->dev);
       log_write(bp);
     }
