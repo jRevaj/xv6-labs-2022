@@ -536,13 +536,13 @@ sys_symlink(void){
     return -1;
 
   begin_op();
-  if((ip = create(path, T_SYMLINK, 0, 0)) == 0){
+  if((ip = create(path, T_SYMLINK, 0, 0)) == 0){ // try to create disk entry
     end_op();
     return -1;
   }
   if(writei(ip, 0, (uint64)target, 0, strlen(target) + 1) <= 0)
     panic("sys_symlink: writei");
-  iunlockput(ip);
+  iunlockput(ip); // unlock then put
   end_op();
   return 0;
 }
